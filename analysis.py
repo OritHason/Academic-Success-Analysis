@@ -28,7 +28,7 @@ Author: Automated by ChatGPT for reproducibility.
 import os
 import warnings
 from pathlib import Path
-from typing import Text
+from typing import Text, Sequence
 
 import numpy as np
 import pandas as pd
@@ -91,7 +91,7 @@ def describe_exam_scores(data: pd.DataFrame) -> None:
     t_stat, p_val = stats.ttest_1samp(scores, popmean=60)
     # Since we test one-sided H1: μ > 60, adjust p-value
     p_val_one_sided = p_val / 2 if t_stat > 0 else 1 - p_val / 2
-    print("One–sample t‑test for H0: μ = 60 vs H1: μ > 60:")
+    print("One–sample t-test for H0: μ = 60 vs H1: μ > 60:")
     print(f"  t statistic: {t_stat:.3f}")
     print(f"  p-value (one-sided): {p_val_one_sided:.5e}\n")
 
@@ -136,7 +136,7 @@ def plot_exam_distribution(data: pd.DataFrame, out_dir: Path) -> None:
     plt.legend()
     plt.tight_layout()
     fig_path = out_dir / "exam_score_distribution.png"
-    plt.savefig(fig_path)
+    plt.savefig(fig_path, dpi=300)
     plt.close()
     print(f"Exam score distribution plot saved to {fig_path}")
 
@@ -153,19 +153,26 @@ def distributions_grid(data: pd.DataFrame, out_dir: Path) -> None:
     out_dir : Path
         Directory where the plot will be saved.
     """
+    ensure_directory(out_dir)
     numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()
     fig, axes = plt.subplots(3, 3, figsize=(18, 16))
     axes = axes.flatten()
 
-    for i, col in enumerate(numeric_cols):
+    for i, col in enumerate(numeric_cols[: len(axes)]):
         sns.histplot(data[col], ax=axes[i], kde=True)
         axes[i].set_title(f'{col}', fontsize=10)
         axes[i].set_xlabel('')
         axes[i].set_ylabel('')
 
+    # Remove any unused axes
+    for j in range(len(numeric_cols), len(axes)):
+        fig.delaxes(axes[j])
+
     plt.tight_layout()
-    plt.savefig(f"{out_dir}/distributions_grid.png", dpi=300)
-    plt.show()
+    path = Path(out_dir) / "distributions_grid.png"
+    plt.savefig(path, dpi=300)
+    plt.close()
+    print(f"Distributions grid saved to {path}")
 
 
 def scatter_grid_vs_score(data: pd.DataFrame, out_dir: Path, color_by: Text) -> None:
@@ -182,8 +189,9 @@ def scatter_grid_vs_score(data: pd.DataFrame, out_dir: Path, color_by: Text) -> 
     color_by: Text
         Field to color the points
     """
+    ensure_directory(out_dir)
     numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()
-    numeric_cols.remove("exam_score")
+    numeric_cols = [c for c in numeric_cols if c != "exam_score"]
     cols = 3
     rows = int(np.ceil(len(numeric_cols) / cols))
     fig, axes = plt.subplots(rows, cols, figsize=(6 * cols, 5 * rows))
@@ -198,10 +206,12 @@ def scatter_grid_vs_score(data: pd.DataFrame, out_dir: Path, color_by: Text) -> 
     for j in range(i + 1, len(axes)):
         fig.delaxes(axes[j])
 
-    plt.suptitle(f"Scatter Grid")
+    plt.suptitle("Scatter Grid", y=1.02)
     plt.tight_layout()
-    plt.savefig(f"{out_dir}/scatter_grid_vs_score.png", dpi=300)
-    plt.show()
+    path = Path(out_dir) / "scatter_grid_vs_score.png"
+    plt.savefig(path, dpi=300)
+    plt.close()
+    print(f"Scatter grid vs score saved to {path}")
 
 
 def correlation_matrix(data: pd.DataFrame, out_dir: Path):
@@ -216,6 +226,7 @@ def correlation_matrix(data: pd.DataFrame, out_dir: Path):
     out_dir : Path
         Directory where the plot will be saved.
     """
+    ensure_directory(out_dir)
     plt.figure(figsize=(8, 6))
     corr_matrix = data.select_dtypes(include=[np.number]).corr()
     sns.heatmap(
@@ -228,10 +239,12 @@ def correlation_matrix(data: pd.DataFrame, out_dir: Path):
         linewidths=0.5,
         square=True,
     )
-    plt.title(f"Correlation Matrix")
+    plt.title("Correlation Matrix")
     plt.tight_layout()
-    plt.savefig(f"{out_dir}/correlation_matrix.png", dpi=300)
-    plt.show()
+    path = Path(out_dir) / "correlation_matrix.png"
+    plt.savefig(path, dpi=300)
+    plt.close()
+    print(f"Correlation matrix saved to {path}")
 
 
 def correlation_analysis(data: pd.DataFrame, out_dir: Path) -> None:
@@ -252,7 +265,7 @@ def correlation_analysis(data: pd.DataFrame, out_dir: Path) -> None:
     print("Correlation between study hours and exam score:")
     print(f"  Pearson r: {r:.3f}")
     print(f"  p-value: {p_val:.3e}\n")
-    
+
     # Scatter plot with regression line
     plt.figure(figsize=(8, 5))
     sns.scatterplot(x=x, y=y, color="#FB8B24", alpha=0.6, edgecolor=None)
@@ -263,17 +276,17 @@ def correlation_analysis(data: pd.DataFrame, out_dir: Path) -> None:
     plt.xlabel("Study Hours per Day")
     plt.ylabel("Exam Score")
     plt.tight_layout()
-    fig_path = out_dir / "exam_vs_study_hours.png"
-    plt.savefig(fig_path)
+    fig_path = Path(out_dir) / "exam_vs_study_hours.png"
+    plt.savefig(fig_path, dpi=300)
     plt.close()
     print(f"Exam score vs study hours plot saved to {fig_path}\n")
 
 
-def prepare_features(df: pd.DataFrame) -> pd.DataFrame:
+def prepare_features(df: pd.DataFrame):
     """Prepare feature matrix for classification.
 
-    This function encodes categorical variables using one‑hot encoding and drops
-    non‑predictive columns such as the student identifier and the exam score.
+    This function encodes categorical variables using one-hot encoding and drops
+    non-predictive columns such as the student identifier and the exam score.
 
     Parameters
     ----------
@@ -282,8 +295,8 @@ def prepare_features(df: pd.DataFrame) -> pd.DataFrame:
 
     Returns
     -------
-    pd.DataFrame
-        A new dataframe ready to be used as input features for models.
+    (pd.DataFrame, pd.Series)
+        Features X and target y.
     """
     # Copy to avoid modifying the original
     data = df.copy()
@@ -304,13 +317,8 @@ def prepare_features(df: pd.DataFrame) -> pd.DataFrame:
         "internet_quality",
         "extracurricular_participation",
     ]
-    numeric_cols = [
-        col
-        for col in X.columns
-        if col not in categorical_cols
-    ]
 
-    # One‑hot encode categorical variables, drop first level to avoid multicollinearity
+    # One-hot encode categorical variables, drop first level to avoid multicollinearity
     X_encoded = pd.get_dummies(X, columns=categorical_cols, drop_first=True)
 
     return X_encoded, y
@@ -328,7 +336,6 @@ def logistic_model_statsmodels(X: pd.DataFrame, y: pd.Series) -> None:
     """
     # Add constant term for intercept and ensure numeric types
     X_sm = sm.add_constant(X)
-    # Statsmodels requires purely numeric arrays; cast to float to avoid 'object' dtype
     X_sm = X_sm.astype(float)
     y_numeric = y.astype(float)
     logit_model = sm.Logit(y_numeric, X_sm)
@@ -348,7 +355,6 @@ def logistic_model_statsmodels(X: pd.DataFrame, y: pd.Series) -> None:
     print(f"  LR statistic: {lr_stat:.3f}")
     print(f"  Degrees of freedom: {df_diff}")
     print(f"  p-value: {p_value:.3e}")
-    # Highlight coefficient for study hours
     if 'study_hours_per_day' in X.columns:
         coef = result.params['study_hours_per_day']
         print(
@@ -358,10 +364,41 @@ def logistic_model_statsmodels(X: pd.DataFrame, y: pd.Series) -> None:
     print()
 
 
+def _plot_confusion_matrix(
+    y_true: Sequence[int],
+    y_pred: Sequence[int],
+    class_names: Sequence[str],
+    title: str,
+    out_path: Path,
+    normalize: bool = False,
+) -> None:
+    """Plot and save a confusion matrix heatmap."""
+    cm = confusion_matrix(y_true, y_pred, labels=[0, 1])
+    if normalize:
+        cm = cm.astype("float") / np.maximum(cm.sum(axis=1, keepdims=True), 1)
+    plt.figure(figsize=(5.5, 4.5))
+    sns.heatmap(
+        cm,
+        annot=True,
+        fmt=".2f" if normalize else "d",
+        cbar=False,
+        xticklabels=class_names,
+        yticklabels=class_names,
+        linewidths=0.5,
+        square=True,
+    )
+    plt.xlabel("Predicted label")
+    plt.ylabel("True label")
+    plt.title(title)
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=300)
+    plt.close()
+
+
 def classification_models(X: pd.DataFrame, y: pd.Series, out_dir: Path) -> None:
     """Train logistic regression and random forest classifiers and evaluate them.
 
-    Plots ROC curves and prints classification metrics.
+    Saves ROC curves and confusion matrices, and prints classification metrics.
 
     Parameters
     ----------
@@ -386,7 +423,7 @@ def classification_models(X: pd.DataFrame, y: pd.Series, out_dir: Path) -> None:
     X_train_scaled[numeric_cols] = scaler.fit_transform(X_train[numeric_cols])
     X_test_scaled[numeric_cols] = scaler.transform(X_test[numeric_cols])
 
-    # Logistic Regression (scikit‑learn)
+    # Logistic Regression (scikit-learn)
     lr_clf = LogisticRegression(max_iter=1000)
     lr_clf.fit(X_train_scaled, y_train)
     y_pred_lr = lr_clf.predict(X_test_scaled)
@@ -400,9 +437,7 @@ def classification_models(X: pd.DataFrame, y: pd.Series, out_dir: Path) -> None:
     if hasattr(rf_clf, "predict_proba"):
         y_proba_rf = rf_clf.predict_proba(X_test)[:, 1]
     else:
-        # Fallback: use decision function scaled to [0, 1].
         dec = rf_clf.decision_function(X_test)
-        # Avoid division by zero if all decision values are the same
         if dec.max() == dec.min():
             y_proba_rf = np.full_like(dec, fill_value=0.5, dtype=float)
         else:
@@ -420,12 +455,45 @@ def classification_models(X: pd.DataFrame, y: pd.Series, out_dir: Path) -> None:
     print_metrics("Logistic Regression (sklearn)", y_test, y_pred_lr)
     print_metrics("Random Forest", y_test, y_pred_rf)
 
+    # Confusion matrices (saved as figures)
+    class_names = ["Fail (0)", "Pass (1)"]
+    _plot_confusion_matrix(
+        y_test, y_pred_lr, class_names,
+        title="Logistic Regression – Confusion Matrix",
+        out_path=Path(out_dir) / "confusion_matrix_lr.png",
+        normalize=False,
+    )
+    _plot_confusion_matrix(
+        y_test, y_pred_lr, class_names,
+        title="Logistic Regression – Confusion Matrix (Normalized)",
+        out_path=Path(out_dir) / "confusion_matrix_lr_normalized.png",
+        normalize=True,
+    )
+    _plot_confusion_matrix(
+        y_test, y_pred_rf, class_names,
+        title="Random Forest – Confusion Matrix",
+        out_path=Path(out_dir) / "confusion_matrix_rf.png",
+        normalize=False,
+    )
+    _plot_confusion_matrix(
+        y_test, y_pred_rf, class_names,
+        title="Random Forest – Confusion Matrix (Normalized)",
+        out_path=Path(out_dir) / "confusion_matrix_rf_normalized.png",
+        normalize=True,
+    )
+    print(
+        f"Confusion matrices saved to {out_dir}/confusion_matrix_lr.png, "
+        f"{out_dir}/confusion_matrix_lr_normalized.png, "
+        f"{out_dir}/confusion_matrix_rf.png, "
+        f"{out_dir}/confusion_matrix_rf_normalized.png"
+    )
+
     # ROC curves
     fpr_lr, tpr_lr, _ = roc_curve(y_test, y_proba_lr)
     roc_auc_lr = auc(fpr_lr, tpr_lr)
     fpr_rf, tpr_rf, _ = roc_curve(y_test, y_proba_rf)
     roc_auc_rf = auc(fpr_rf, tpr_rf)
-    
+
     plt.figure(figsize=(8, 6))
     plt.plot(fpr_lr, tpr_lr, color="blue", lw=2, label=f"Logistic Regression (AUC = {roc_auc_lr:.3f})")
     plt.plot(fpr_rf, tpr_rf, color="green", lw=2, label=f"Random Forest (AUC = {roc_auc_rf:.3f})")
@@ -437,10 +505,113 @@ def classification_models(X: pd.DataFrame, y: pd.Series, out_dir: Path) -> None:
     plt.title("ROC Curves for Classification Models")
     plt.legend(loc="lower right")
     plt.tight_layout()
-    roc_path = out_dir / "roc_curves.png"
-    plt.savefig(roc_path)
+    roc_path = Path(out_dir) / "roc_curves.png"
+    plt.savefig(roc_path, dpi=300)
     plt.close()
     print(f"ROC curves plot saved to {roc_path}\n")
+
+    # Baseline accuracy: always predict the most frequent class
+    majority_class = y.value_counts().idxmax()
+    baseline_acc = (y == majority_class).mean()
+    print(f"Baseline accuracy (predicting all as {majority_class}): {baseline_acc:.3f}\n")
+
+    # Cross‑validation for logistic regression accuracy and AUC
+    from sklearn.pipeline import make_pipeline
+    from sklearn.compose import ColumnTransformer
+    from sklearn.model_selection import StratifiedKFold, cross_val_score
+
+    # Identify numeric columns (for scaling) and the remainder (for passthrough)
+    numeric_cols = X.select_dtypes(include=[np.number]).columns
+    preprocessor = ColumnTransformer(
+        transformers=[("num", StandardScaler(), numeric_cols)],
+        remainder="passthrough",
+    )
+    cv_clf = make_pipeline(preprocessor, LogisticRegression(max_iter=1000))
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    cv_acc = cross_val_score(cv_clf, X, y, cv=cv, scoring="accuracy")
+    cv_auc = cross_val_score(cv_clf, X, y, cv=cv, scoring="roc_auc")
+    print("Cross‑validated performance for logistic regression:")
+    print(f"  Mean accuracy over 5 folds: {cv_acc.mean():.3f} ± {cv_acc.std():.3f}")
+    print(f"  Mean AUC over 5 folds: {cv_auc.mean():.3f} ± {cv_auc.std():.3f}\n")
+
+
+def moderation_plot(data: pd.DataFrame, usage_col: str, low_threshold: float, high_threshold: float, title: str, out_path: Path) -> None:
+    """Generate a moderation plot showing how the relationship between study hours
+    and exam score differs for low- and high-usage groups.
+
+    The function splits the data into two groups based on the specified
+    thresholds for a moderating variable (such as ``netflix_hours`` or
+    ``social_media_hours``), plots scatter points for each group, fits a
+    separate linear regression line to each group, and annotates the plot
+    with the Pearson correlation coefficient for each group.  The result
+    is saved to the provided file path.
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        DataFrame containing ``study_hours_per_day``, ``exam_score`` and the
+        moderator column.
+    usage_col : str
+        Name of the moderating variable column.
+    low_threshold : float
+        Upper bound for the low-usage group (strict inequality).
+    high_threshold : float
+        Lower bound for the high-usage group (strict inequality).
+    title : str
+        Title for the plot.
+    out_path : Path
+        Path where the figure will be saved.
+    """
+    ensure_directory(out_path.parent)
+    # Define low and high usage groups
+    low_group = data[data[usage_col] < low_threshold]
+    high_group = data[data[usage_col] > high_threshold]
+
+    # Compute Pearson correlations
+    def safe_corr(group: pd.DataFrame) -> float:
+        if len(group) < 2:
+            return float('nan')
+        return stats.pearsonr(group['study_hours_per_day'], group['exam_score'])[0]
+    r_low = safe_corr(low_group)
+    r_high = safe_corr(high_group)
+
+    # Create scatter plot
+    plt.figure(figsize=(8, 6))
+    sns.scatterplot(
+        x='study_hours_per_day',
+        y='exam_score',
+        data=low_group,
+        label=f"Low {usage_col.replace('_hours','').capitalize()} (<{low_threshold} h/day) (r={r_low:.2f})",
+        color='#1f77b4',
+        alpha=0.6,
+    )
+    sns.scatterplot(
+        x='study_hours_per_day',
+        y='exam_score',
+        data=high_group,
+        label=f"High {usage_col.replace('_hours','').capitalize()} (>{high_threshold} h/day) (r={r_high:.2f})",
+        color='#ff7f0e',
+        alpha=0.6,
+    )
+
+    # Regression lines for each group
+    for group, color in [(low_group, '#1f77b4'), (high_group, '#ff7f0e')]:
+        if len(group) >= 2:
+            x = group['study_hours_per_day']
+            y = group['exam_score']
+            slope, intercept = np.polyfit(x, y, 1)
+            x_vals = np.linspace(x.min(), x.max(), 100)
+            y_vals = slope * x_vals + intercept
+            plt.plot(x_vals, y_vals, color=color, linestyle='--')
+
+    plt.title(title)
+    plt.xlabel('Study Hours per Day')
+    plt.ylabel('Exam Score')
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(out_path)
+    plt.close()
+    print(f"Moderation plot saved to {out_path}")
 
 
 def main() -> None:
@@ -458,27 +629,41 @@ def main() -> None:
     # Descriptive statistics and hypothesis tests
     describe_exam_scores(df)
 
-    # Plot exam score distribution
+    # Plots
     plot_exam_distribution(df, figures_dir)
-
-    # Plot distributions of the numeric parameters
     distributions_grid(df, figures_dir)
-
     correlation_matrix(df, figures_dir)
-
     scatter_grid_vs_score(df, figures_dir, "gender")
-
-    # Correlation analysis for study hours vs exam score
     correlation_analysis(df, figures_dir)
 
     # Prepare features and target for classification models
-    x, y = prepare_features(df)
+    X, y = prepare_features(df)
 
     # Fit logistic regression using statsmodels for interpretability
-    logistic_model_statsmodels(x, y)
+    logistic_model_statsmodels(X, y)
 
-    # Train classification models and evaluate
-    classification_models(x, y, figures_dir)
+    # Train classification models and evaluate (now with CM figures)
+    classification_models(X, y, figures_dir)
+
+    # Moderation analysis plots
+    # Netflix usage: low <1 hour/day, high >3 hours/day
+    moderation_plot(
+        df,
+        usage_col='netflix_hours',
+        low_threshold=1.0,
+        high_threshold=3.0,
+        title='Moderation by Netflix Usage',
+        out_path=figures_dir / 'moderation_netflix.png',
+    )
+    # Social media usage: low <1 hour/day, high >4 hours/day
+    moderation_plot(
+        df,
+        usage_col='social_media_hours',
+        low_threshold=1.0,
+        high_threshold=4.0,
+        title='Moderation by Social Media Usage',
+        out_path=figures_dir / 'moderation_social_media.png',
+    )
 
 
 if __name__ == "__main__":
