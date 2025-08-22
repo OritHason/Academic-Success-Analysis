@@ -168,8 +168,8 @@ def distributions_grid(data: pd.DataFrame, out_dir: Path) -> None:
     plt.show()
 
 
-def scatter_grid_vs_score(data: pd.DataFrame, out_dir: Path, group_by: Text,  color_by: Text) -> None:
-    """Plot scatter grid of the numeric parameters compare to the score for sub groups.
+def scatter_grid_vs_score(data: pd.DataFrame, out_dir: Path, color_by: Text) -> None:
+    """Plot scatter grid of the numeric parameters compare to the score.
 
     The resulting figure is saved to `out_dir`.
 
@@ -179,36 +179,33 @@ def scatter_grid_vs_score(data: pd.DataFrame, out_dir: Path, group_by: Text,  co
         DataFrame containing an ``exam_score`` column.
     out_dir : Path
         Directory where the plot will be saved.
-    group_by: Text
-        Field to split the data.
     color_by: Text
         Field to color the points
     """
-    for group, group_data in data.groupby(group_by):
-        numeric_cols = group_data.select_dtypes(include=[np.number]).columns.tolist()
-        numeric_cols.remove("exam_score")
-        cols = 3
-        rows = int(np.ceil(len(numeric_cols) / cols))
-        fig, axes = plt.subplots(rows, cols, figsize=(6 * cols, 5 * rows))
-        axes = axes.flatten()
+    numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()
+    numeric_cols.remove("exam_score")
+    cols = 3
+    rows = int(np.ceil(len(numeric_cols) / cols))
+    fig, axes = plt.subplots(rows, cols, figsize=(6 * cols, 5 * rows))
+    axes = axes.flatten()
 
-        for i, col in enumerate(numeric_cols):
-            sns.scatterplot(data=group_data, x=col, y='exam_score', hue=color_by, ax=axes[i], alpha=0.6)
-            axes[i].set_title(f'{col} vs exam_score')
-            axes[i].set_xlabel(col)
-            axes[i].set_ylabel('exam_score')
+    for i, col in enumerate(numeric_cols):
+        sns.scatterplot(data=data, x=col, y='exam_score', hue=color_by, ax=axes[i], alpha=0.6)
+        axes[i].set_title(f'{col} vs exam_score')
+        axes[i].set_xlabel(col)
+        axes[i].set_ylabel('exam_score')
 
-        for j in range(i + 1, len(axes)):
-            fig.delaxes(axes[j])
+    for j in range(i + 1, len(axes)):
+        fig.delaxes(axes[j])
 
-        plt.suptitle(f"Scatter Grid - {group}")
-        plt.tight_layout()
-        plt.savefig(f"{out_dir}/scatter_grid_vs_score_{group}.png", dpi=300)
-        plt.show()
+    plt.suptitle(f"Scatter Grid")
+    plt.tight_layout()
+    plt.savefig(f"{out_dir}/scatter_grid_vs_score.png", dpi=300)
+    plt.show()
 
 
-def correlation_matrix(data: pd.DataFrame, out_dir: Path, group_by: Text):
-    """Plot correlation matrix for sub-groups.
+def correlation_matrix(data: pd.DataFrame, out_dir: Path):
+    """Plot correlation matrix for the data.
 
     The resulting figure is saved to `out_dir`.
 
@@ -218,26 +215,23 @@ def correlation_matrix(data: pd.DataFrame, out_dir: Path, group_by: Text):
         DataFrame containing an ``exam_score`` column.
     out_dir : Path
         Directory where the plot will be saved.
-    group_by: Text
-        Field to split the data.
     """
-    for group, data in data.groupby(group_by):
-        plt.figure(figsize=(8, 6))
-        corr_matrix = data.select_dtypes(include=[np.number]).corr()
-        sns.heatmap(
-            corr_matrix,
-            annot=True,
-            fmt=".2f",
-            cmap="coolwarm",
-            center=0,
-            vmin=-1, vmax=1,
-            linewidths=0.5,
-            square=True,
-        )
-        plt.title(f"Correlation Matrix - {group}")
-        plt.tight_layout()
-        plt.savefig(f"{out_dir}/correlation_matrix_{group}.png", dpi=300)
-        plt.show()
+    plt.figure(figsize=(8, 6))
+    corr_matrix = data.select_dtypes(include=[np.number]).corr()
+    sns.heatmap(
+        corr_matrix,
+        annot=True,
+        fmt=".2f",
+        cmap="coolwarm",
+        center=0,
+        vmin=-1, vmax=1,
+        linewidths=0.5,
+        square=True,
+    )
+    plt.title(f"Correlation Matrix")
+    plt.tight_layout()
+    plt.savefig(f"{out_dir}/correlation_matrix.png", dpi=300)
+    plt.show()
 
 
 def correlation_analysis(data: pd.DataFrame, out_dir: Path) -> None:
@@ -332,12 +326,35 @@ def logistic_model_statsmodels(X: pd.DataFrame, y: pd.Series) -> None:
     y : pd.Series
         Binary target variable.
     """
-    # Add constant term for intercept
-    X_sm = sm.add_constant(np.asarray(X))
-    logit_model = sm.Logit(y, X_sm)
+    # Add constant term for intercept and ensure numeric types
+    X_sm = sm.add_constant(X)
+    # Statsmodels requires purely numeric arrays; cast to float to avoid 'object' dtype
+    X_sm = X_sm.astype(float)
+    y_numeric = y.astype(float)
+    logit_model = sm.Logit(y_numeric, X_sm)
     result = logit_model.fit(disp=False)
     print("Logistic regression (statsmodels) summary:")
     print(result.summary2().as_text())
+
+    # Likelihood ratio test comparing the full model to an intercept-only model
+    ll_full = result.llf
+    # Fit a null model with only the intercept
+    null_model = sm.Logit(y_numeric, np.ones((len(y_numeric), 1))).fit(disp=False)
+    ll_null = null_model.llf
+    lr_stat = -2 * (ll_null - ll_full)
+    df_diff = X.shape[1]  # degrees of freedom difference
+    p_value = stats.chi2.sf(lr_stat, df=df_diff)
+    print("\nLikelihood ratio test (full model vs null model):")
+    print(f"  LR statistic: {lr_stat:.3f}")
+    print(f"  Degrees of freedom: {df_diff}")
+    print(f"  p-value: {p_value:.3e}")
+    # Highlight coefficient for study hours
+    if 'study_hours_per_day' in X.columns:
+        coef = result.params['study_hours_per_day']
+        print(
+            f"\nCoefficient for study_hours_per_day: {coef:.3f} (log-odds); "
+            f"exp(coef) ≈ {np.exp(coef):.1f}"
+        )
     print()
 
 
@@ -447,11 +464,9 @@ def main() -> None:
     # Plot distributions of the numeric parameters
     distributions_grid(df, figures_dir)
 
-    correlation_matrix(df, figures_dir, "parental_education_level")
-    correlation_matrix(df, figures_dir, "gender")
+    correlation_matrix(df, figures_dir)
 
-    scatter_grid_vs_score(df, figures_dir, "parental_education_level", "gender")
-    scatter_grid_vs_score(df, figures_dir, "gender", "parental_education_level")
+    scatter_grid_vs_score(df, figures_dir, "gender")
 
     # Correlation analysis for study hours vs exam score
     correlation_analysis(df, figures_dir)
@@ -460,7 +475,7 @@ def main() -> None:
     x, y = prepare_features(df)
 
     # Fit logistic regression using statsmodels for interpretability
-    # logistic_model_statsmodels(x, y)
+    logistic_model_statsmodels(x, y)
 
     # Train classification models and evaluate
     classification_models(x, y, figures_dir)

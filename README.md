@@ -43,6 +43,9 @@ classifying students into high‐ and low‐performing groups.
    console.  It also writes the following figures to the `figures/`
    directory:
 
+   * `correlation_matrix.png` – a matrix correlation matrix of the features in the data.
+   * `distribution_grid.png` – a histograms of all the numeric features overlaid normal distribution.
+   * `scatter_grid_vs_score.png` – scatter plot for numeric features VS exam scores, colored by gender.
    * `exam_score_distribution.png` – a histogram of exam scores with
      an overlaid normal distribution and mean marker.
    * `exam_vs_study_hours.png` – a scatter plot of exam score versus
